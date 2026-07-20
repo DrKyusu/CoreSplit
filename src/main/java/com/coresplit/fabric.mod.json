@@ -1,0 +1,38 @@
+{
+    "schemaVersion": 1,
+    "id": "coresplit",
+    "version": "${version}",
+    "name": "CoreSplit",
+    "description": "Parallel tick engine for Minecraft — distributes game processes across CPU cores for maximum performance.",
+    "authors": [
+        "CoreSplit Team"
+    ],
+    "contact": {
+        "sources": "https://github.com/coresplit/coresplit-fabric",
+        "issues": "https://github.com/coresplit/coresplit-fabric/issues"
+    },
+    "license": "MIT",
+    "icon": "assets/coresplit/icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "com.coresplit.CoreSplitMod"
+        ],
+        "server": [
+            "com.coresplit.CoreSplitMod"
+        ]
+    },
+    "mixins": [
+        "coresplit.mixins.json"
+    ],
+    "depends": {
+        "fabricloader": ">=0.19.3",
+        "fabric-api": "*",
+        "minecraft": "26.2",
+        "java": ">=21"
+    },
+    "suggests": {
+        "lithium": "*",
+        "sodium": "*"
+    }
+}

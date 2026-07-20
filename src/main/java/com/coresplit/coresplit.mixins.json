@@ -1,0 +1,22 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "com.coresplit.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "MinecraftServerMixin",
+        "ServerWorldMixin",
+        "ServerChunkManagerMixin",
+        "EntityMixin"
+    ],
+    "client": [],
+    "server": [
+        "MinecraftServerMixin",
+        "ServerWorldMixin",
+        "ServerChunkManagerMixin",
+        "EntityMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

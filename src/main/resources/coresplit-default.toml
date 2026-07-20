@@ -1,0 +1,44 @@
+# ═══════════════════════════════════════
+#        CoreSplit Configuration
+# ═══════════════════════════════════════
+
+[dimension]
+# Enable per-dimension threading.
+# Each dimension (Overworld, Nether, End, etc.) runs on its own thread.
+enabled = true
+# Number of dimension worker threads. 0 = auto-detect (= max(3, CPU/2)).
+thread_count = 0
+
+[entity]
+# Enable parallel entity processing within each dimension.
+# Entities are partitioned by spatial region and processed concurrently.
+enabled = true
+# Number of entity worker threads. 0 = auto-detect (= max(2, CPU/2)).
+worker_count = 0
+# Spatial partition granularity. 2^partition_shift chunks per partition.
+# Higher value = fewer, larger partitions = less overhead but less parallelism.
+partition_shift = 4
+
+[chunk]
+# Enable priority-based parallel chunk loading.
+# Chunks near players load first, distant chunks are background-loaded.
+enabled = true
+# Number of chunk loading threads. 0 = auto-detect.
+worker_count = 0
+# Radius (in chunks) around players for high-priority loading.
+priority_radius = 8
+# Maximum chunks kept in memory. Reduce for lower RAM usage.
+max_in_memory = 2048
+
+[pipeline]
+# Enable the phased tick pipeline.
+# Splits each dimension's tick into ordered phases for finer optimization.
+enabled = true
+# Timeout (ms) for each phase. Prevents a single dimension from blocking everything.
+phase_timeout_ms = 5000
+
+[monitoring]
+# Enable performance monitoring and /coresplit commands.
+enabled = true
+# Log per-tick metrics (verbose, for debugging only).
+log_per_tick = false
