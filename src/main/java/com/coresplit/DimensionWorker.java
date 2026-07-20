@@ -258,5 +258,16 @@ public class DimensionWorker {
         }
     }
 
+    /**
+    * Tick 后清理。
+    * 爆炸后可能产生大量区块变更（数百个方块破坏），
+    * 此方法确保变更及时刷新到客户端。
+    */
+    public void postTickCleanup() {
+    // 强制刷新区块变更数据包
+    // 确保爆炸后的方块破坏即时发送到客户端
+        world.getChunkManager().flushUpdates();
+    }
+
     private record PendingTransfer(Entity entity, ServerWorld targetWorld) {}
 }

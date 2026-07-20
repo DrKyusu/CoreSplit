@@ -10,6 +10,9 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.coresplit.network.NetworkHandler;
+import com.coresplit.threading.ExplosionWorkerPool;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
 /**
  * CoreSplit — 并行引擎入口。
@@ -57,6 +60,39 @@ public class CoreSplitMod implements ModInitializer, DedicatedServerModInitializ
                     config.getDimensionThreadCount(),
                     config.getEntityWorkerCount(),
                     config.getChunkWorkerCount());
+    }
+
+            // ═══ 新增：初始化爆炸并行池 ═══
+            if (config.isExplosionParallelEnabled()) {
+                ExplosionWorkerPool.initialize(config);
+    }
+            // 服务端生命周期钩子
+            ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            dimensionManager.initialize(server);
+            LOGGER.info("[CoreSplit] Dimension thread pool ready.");
+
+            // ═══ 新增 ═══
+        if (config.isExplosionParallelEnabled()) {
+            LOGGER.info("[CoreSplit] Explosion parallel engine ready — {} thread(s).",
+                    config.getExplosionThreadCount());
+        }
+    });
+
+            ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+                dimensionManager.shutdown();
+            // ═══ 新增 ═══
+                ExplosionWorkerPool pool = ExplosionWorkerPool.getInstance();
+                if (pool != null) pool.shutdown();
+                perfMonitor.dumpSummary();
+                LOGGER.info("[CoreSplit] All worker threads terminated.");
+    });
+
+            // ═══ 新增：网络指标推送 ═══
+            ServerTickEvents.END_SERVER_TICK.register(server -> {
+                if (config.isNetworkMetricsEnabled()) {
+            NetworkHandler.onServerTick(server, perfMonitor, dimensionManager);
+        }
+    });
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
@@ -72,6 +108,7 @@ public class CoreSplitMod implements ModInitializer, DedicatedServerModInitializ
 
         LOGGER.info("[CoreSplit] Bootstrap complete. Engine is armed.");
     }
+
 
     public static CoreSplitConfig getConfig()       { return config; }
     public static DimensionThreadManager getManager() { return dimensionManager; }

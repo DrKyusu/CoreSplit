@@ -5,13 +5,13 @@
     "name": "CoreSplit",
     "description": "Parallel tick engine for Minecraft — distributes game processes across CPU cores for maximum performance.",
     "authors": [
-        "CoreSplit Team"
+        "DR.Kyusu"
     ],
     "contact": {
-        "sources": "https://github.com/coresplit/coresplit-fabric",
-        "issues": "https://github.com/coresplit/coresplit-fabric/issues"
+        "sources": "https://github.com/DrKyusu/CoreSplit",
+        "issues": "https://github.com/DrKyusu/CoreSplit/issues"
     },
-    "license": "MIT",
+    "license": "AGPL-3.0 license",
     "icon": "assets/coresplit/icon.png",
     "environment": "*",
     "entrypoints": {

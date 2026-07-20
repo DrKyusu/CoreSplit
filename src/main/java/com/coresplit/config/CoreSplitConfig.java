@@ -39,6 +39,16 @@ public class CoreSplitConfig {
     private boolean monitoringEnabled = true;
     private boolean logPerTickMetrics = false;
 
+    // ─── 爆炸并行 ───
+private boolean explosionParallelEnabled = true;
+private int explosionThreadCount = 0; // 0 = auto (min(CPU/2, 4))
+
+// ─── 网络 ───
+private boolean networkMetricsEnabled = true;
+
+// ─── 客户端 ───
+private boolean f3OverlayEnabled = true;
+
     private static final Path CONFIG_PATH = FabricLoader.getInstance()
             .getConfigDir().resolve("coresplit.toml");
 
@@ -83,6 +93,12 @@ public class CoreSplitConfig {
 
             cfg.monitoringEnabled         = fileConfig.getOrElse("monitoring.enabled", true);
             cfg.logPerTickMetrics         = fileConfig.getOrElse("monitoring.log_per_tick", false);
+
+            cfg.explosionParallelEnabled = fileConfig.getOrElse("explosion.enabled", true);
+            cfg.explosionThreadCount     = fileConfig.getOrElse("explosion.thread_count", 0);
+            cfg.networkMetricsEnabled    = fileConfig.getOrElse("network.metrics_enabled", true);
+            cfg.f3OverlayEnabled         = fileConfig.getOrElse("client.f3_overlay", true);
+
         } catch (Exception e) {
             CoreSplitMod.LOGGER.warn("[CoreSplit] Config load failed, using defaults.", e);
         }
@@ -100,6 +116,11 @@ public class CoreSplitConfig {
 
         CoreSplitMod.LOGGER.info("[CoreSplit] Config loaded: dimThreads={}, entityWorkers={}, chunkWorkers={}",
                 cfg.dimensionThreadCount, cfg.entityWorkerCount, cfg.chunkWorkerCount);
+
+        if (cfg.explosionThreadCount <= 0) {
+                cfg.explosionThreadCount = Math.min(
+            Math.max(2, Runtime.getRuntime().availableProcessors() / 2), 4);
+        }
 
         return cfg;
     }
@@ -152,4 +173,9 @@ public class CoreSplitConfig {
     public int getPhaseTimeoutMs()               { return phaseTimeoutMs; }
     public boolean isMonitoringEnabled()         { return monitoringEnabled; }
     public boolean isLogPerTickMetrics()         { return logPerTickMetrics; }
+    // New by v2
+    public boolean isExplosionParallelEnabled() { return explosionParallelEnabled; }
+public int getExplosionThreadCount()        { return explosionThreadCount; }
+public boolean isNetworkMetricsEnabled()    { return networkMetricsEnabled; }
+public boolean isF3OverlayEnabled()         { return f3OverlayEnabled; }
 }
