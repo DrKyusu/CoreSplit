@@ -1,116 +1,61 @@
 package com.coresplit;
 
-import com.coresplit.command.CoreSplitCommand;
+import com.coresplit.compat.CompatibilityDetector;
 import com.coresplit.config.CoreSplitConfig;
-import com.coresplit.metrics.PerformanceMonitor;
-import com.coresplit.threading.DimensionThreadManager;
+import com.coresplit.monitoring.ServerPerformanceMonitor;
+import com.coresplit.network.NetworkHandler;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.coresplit.network.NetworkHandler;
-import com.coresplit.threading.ExplosionWorkerPool;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
-/**
- * CoreSplit — 并行引擎入口。
- *
- * 架构概览：
- *   主线程（MinecraftServer.tick）仅负责调度与同步，
- *   将各维度的 Tick 任务分发至独立的 DimensionWorker 线程，
- *   每个 DimensionWorker 内部再通过 EntityWorkerPool / ChunkWorkerPool
- *   将实体计算与区块加载进一步并行化。
- *
- * 借鉴来源：
- *   - DimensionalThreading 的维度级线程隔离 (citation:12)
- *   - Async 的实体多线程处理 (citation:6)
- *   - C2ME 的优先级区块加载线程池 (citation:1)
- */
 public class CoreSplitMod implements ModInitializer, DedicatedServerModInitializer {
 
     public static final String MOD_ID = "coresplit";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static volatile CoreSplitConfig config;
-    private static volatile DimensionThreadManager dimensionManager;
-    private static volatile PerformanceMonitor perfMonitor;
+    private static volatile ServerPerformanceMonitor perfMonitor;
+    private static volatile CompatibilityDetector compatibilityDetector;
 
     @Override
     public void onInitialize() {
-        LOGGER.info("[CoreSplit] Initializing parallel tick engine...");
-        bootstrap();
+        LOGGER.info("[CoreSplit] v2.0 initializing...");
+        config = CoreSplitConfig.load();
+
+        if (config.isCompatibilityMode()) {
+            compatibilityDetector = new CompatibilityDetector();
+            compatibilityDetector.detect();
+        }
+
+        perfMonitor = new ServerPerformanceMonitor(config);
+
+        ServerLifecycleEvents.SERVER_STARTING.register(server ->
+                LOGGER.info("[CoreSplit] Server starting."));
+
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            perfMonitor.dumpSummary();
+            LOGGER.info("[CoreSplit] Server stopping.");
+        });
+
+        ServerTickEvents.START_SERVER_TICK.register(server -> perfMonitor.onTickStart());
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            perfMonitor.onTickEnd();
+            if (config.isNetworkMetricsEnabled()) {
+                NetworkHandler.updateSnapshot(perfMonitor);
+            }
+        });
+
+        LOGGER.info("[CoreSplit] Bootstrap complete.");
     }
 
     @Override
     public void onInitializeServer() {
-        LOGGER.info("[CoreSplit] Server-side initialization complete.");
     }
 
-    private void bootstrap() {
-        config = CoreSplitConfig.load();
-        perfMonitor = new PerformanceMonitor(config);
-        dimensionManager = new DimensionThreadManager(config, perfMonitor);
-
-        // 服务端生命周期钩子
-        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            dimensionManager.initialize(server);
-            LOGGER.info("[CoreSplit] Dimension thread pool ready — {} worker(s), {} entity thread(s), {} chunk thread(s).",
-                    config.getDimensionThreadCount(),
-                    config.getEntityWorkerCount(),
-                    config.getChunkWorkerCount());
-    }
-
-            // ═══ 新增：初始化爆炸并行池 ═══
-            if (config.isExplosionParallelEnabled()) {
-                ExplosionWorkerPool.initialize(config);
-    }
-            // 服务端生命周期钩子
-            ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            dimensionManager.initialize(server);
-            LOGGER.info("[CoreSplit] Dimension thread pool ready.");
-
-            // ═══ 新增 ═══
-        if (config.isExplosionParallelEnabled()) {
-            LOGGER.info("[CoreSplit] Explosion parallel engine ready — {} thread(s).",
-                    config.getExplosionThreadCount());
-        }
-    });
-
-            ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-                dimensionManager.shutdown();
-            // ═══ 新增 ═══
-                ExplosionWorkerPool pool = ExplosionWorkerPool.getInstance();
-                if (pool != null) pool.shutdown();
-                perfMonitor.dumpSummary();
-                LOGGER.info("[CoreSplit] All worker threads terminated.");
-    });
-
-            // ═══ 新增：网络指标推送 ═══
-            ServerTickEvents.END_SERVER_TICK.register(server -> {
-                if (config.isNetworkMetricsEnabled()) {
-            NetworkHandler.onServerTick(server, perfMonitor, dimensionManager);
-        }
-    });
-        });
-
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            dimensionManager.shutdown();
-            perfMonitor.dumpSummary();
-            LOGGER.info("[CoreSplit] All worker threads terminated. Final metrics dumped.");
-        });
-
-        // 注册命令
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            CoreSplitCommand.register(dispatcher, perfMonitor, dimensionManager);
-        });
-
-        LOGGER.info("[CoreSplit] Bootstrap complete. Engine is armed.");
-    }
-
-
-    public static CoreSplitConfig getConfig()       { return config; }
-    public static DimensionThreadManager getManager() { return dimensionManager; }
-    public static PerformanceMonitor getMetrics()     { return perfMonitor; }
+    public static CoreSplitConfig getConfig() { return config; }
+    public static ServerPerformanceMonitor getMetrics() { return perfMonitor; }
+    public static CompatibilityDetector getCompatibilityDetector() { return compatibilityDetector; }
 }

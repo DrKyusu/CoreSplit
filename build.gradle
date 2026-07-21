@@ -1,0 +1,55 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.17.16'
+    id 'maven-publish'
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.fabricmc.net/' }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+    compileOnly "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation "maven.modrinth:yacl:${project.yacl_version}"
+    compileOnly "maven.modrinth:modmenu:${project.mod_menu_version}"
+    include implementation('com.electronwill.night-config:toml:3.8.2')
+    include implementation('com.electronwill.night-config:core:3.8.2')
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+}
+
+base {
+    group = project.maven_group + '.' + project.mod_id
+    archivesName = project.archives_base_name + '-' + project.minecraft_version
+    version = project.mod_version
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = 'UTF-8'
+    it.options.release = 25
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+    withSourcesJar()
+}
+
+jar {
+    from('LICENSE') {
+        rename { "${it}_${base.archivesName}" }
+    }
+}

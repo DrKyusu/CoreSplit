@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "coresplit",
+  "version": "${version}",
+  "name": "CoreSplit",
+  "description": "That Mod Can Optimize the client, if CS is installed on the server, it can provide a better experience",
+  "authors": ["DR.Kyusu"],
+  "contact": {
+    "homepage": "https://github.com/DrKyusu/CoreSplit",
+    "issues": "https://github.com/DrKyusu/CoreSplit/issues",
+    "sources": "https://github.com/DrKyusu/CoreSplit"
+  },
+  "license": "AGPL-3.0 license",
+  "icon": "assets/coresplit/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.coresplit.CoreSplitMod"],
+    "client": ["com.coresplit.CoreSplitClientMod"],
+    "modmenu": ["com.coresplit.compat.ModMenuCompat"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": ">=26.2",
+    "java": ">=25"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
