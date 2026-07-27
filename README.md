@@ -1,250 +1,253 @@
 # CoreSplit
 
-**Version:** 2.5.0
-**Author:** DR.Kyusu
-**License:** AGPL-3.0
-**Minecraft:** >= 26.2
-**Java:** >= 25
-**Fabric Loader:** >= 0.16.0
+**版本：** 2.5.0
+**作者：** DR.Kyusu
+**许可证：** AGPL-3.0
+**Minecraft：** >= 26.2
+**Java：** >= 25
+**Fabric Loader：** >= 0.16.0
 
-> That mod can optimize the client. If CoreSplit is installed on the server, it can provide a better experience.
+> 该模组可以优化客户端。如果在服务器上安装 CoreSplit，则能提供更好的体验。
 
-CoreSplit is a comprehensive performance optimization mod for Minecraft: Java Edition built on the Fabric framework. It targets every layer of the game pipeline — AI, chunk generation, rendering, memory, GPU compute, and shader compatibility — to deliver higher frame rates, lower latency, and stable memory usage under heavy load.
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Core Modules](#core-modules)
-   - [AI Optimization](#ai-optimization)
-   - [Chunk Engine](#chunk-engine)
-   - [Explosion Optimization](#explosion-optimization)
-   - [Memory Management](#memory-management)
-   - [GPU Acceleration](#gpu-acceleration)
-   - [Render Limiter](#render-limiter)
-   - [Performance Governor](#performance-governor)
-   - [Shader Compatibility](#shader-compatibility)
-   - [Model & Texture System](#model--texture-system)
-   - [Entity Sound System](#entity-sound-system)
-   - [Monitoring & Diagnostics](#monitoring--diagnostics)
-   - [Scheduler](#scheduler)
-3. [Configuration](#configuration)
-4. [Compatibility](#compatibility)
-5. [Installation](#installation)
+CoreSplit 是一个基于 Fabric 框架的综合性 Minecraft: Java Edition 性能优化模组。它针对游戏管线的每一层——AI、区块生成、渲染、内存、GPU 计算和着色器兼容性——进行优化，以在高负载下提供更高的帧率、更低的延迟和稳定的内存使用。
 
 ---
 
-## Overview
-
-CoreSplit is designed as a multi-layered optimization framework. Each subsystem can be enabled, tuned, or disabled independently through a unified configuration UI. The mod automatically adapts to the host hardware via device profiling and bottleneck analysis, applying the right strategy for CPU-bound, GPU-bound, entity-bound, or memory-bound scenarios.
-
-Key design principles:
-
-- **Thread-safe by default** — all shared state uses `volatile`, `Atomic*`, or concurrent collections.
-- **Bounded everywhere** — thread pool queues, caches, and batchers all enforce capacity limits to prevent OOM.
-- **Non-blocking main thread** — heavy work (memory cleanup, schema fetch, GPU tasks) runs on dedicated background threads.
-- **Program to interfaces** — field declarations prefer `Map` / `Queue` over concrete implementations.
+[English](README_EN.md) | **中文**
 
 ---
 
-## Core Modules
+## 目录
 
-### AI Optimization
+1. [概述](#概述)
+2. [核心模块](#核心模块)
+   - [AI 优化](#ai-优化)
+   - [区块引擎](#区块引擎)
+   - [爆炸优化](#爆炸优化)
+   - [内存管理](#内存管理)
+   - [GPU 加速](#gpu-加速)
+   - [渲染限制器](#渲染限制器)
+   - [性能调节器](#性能调节器)
+   - [着色器兼容性](#着色器兼容性)
+   - [模型与纹理系统](#模型与纹理系统)
+   - [实体音效系统](#实体音效系统)
+   - [监控与诊断](#监控与诊断)
+   - [调度器](#调度器)
+3. [配置](#配置)
+4. [兼容性](#兼容性)
+5. [安装](#安装)
 
-Reduces the CPU cost of entity AI ticking without breaking vanilla behavior.
+---
 
-| Feature | Description |
-|---------|-------------|
-| **Entity AI Throttle** | Distance-based AI tick buckets (near / mid / far / offscreen). Far entities tick less frequently; offscreen entities can be fully paused. |
-| **Path Cache** | LRU + TTL cache of computed entity paths, keyed by entity type and chunk coordinates. Evicts oldest entries on capacity overflow. |
-| **Shared Path Registry** | Allows entities of the same type in the same area to reuse a shared path, avoiding redundant A* recomputation. |
-| **Spatial Index** | Buckets entities by distance for O(1) throttle classification instead of per-entity distance scans. |
-| **Global Multiplier** | A clamped `[0, 1]` scalar that multiplies tick frequency — set to `0` to pause all AI. |
+## 概述
 
-The throttle injects into `Mob.serverAiStep()` (not `tick()`), so physics, movement, and interpolation continue to run normally while only goal/brain/controls work is throttled.
+CoreSplit 设计为一个多层优化框架。每个子系统都可以通过统一的配置界面独立启用、调整或禁用。该模组通过设备分析和瓶颈检测自动适应主机硬件，为 CPU 密集型、GPU 密集型、实体密集型或内存密集型场景应用相应的策略。
 
-### Chunk Engine
+核心设计原则：
 
-Parallelizes chunk generation and async I/O.
+- **默认线程安全** — 所有共享状态使用 `volatile`、`Atomic*` 或并发集合。
+- **处处有界** — 线程池队列、缓存和批处理器均强制执行容量限制以防止 OOM。
+- **主线程非阻塞** — 繁重工作（内存清理、Schema 获取、GPU 任务）在专用后台线程上运行。
+- **面向接口编程** — 字段声明优先使用 `Map` / `Queue` 而非具体实现。
 
-| Feature | Description |
-|---------|-------------|
-| **Parallel Chunk Generator** | Multi-threaded terrain noise generation with a prioritized task scheduler. |
-| **Async Chunk I/O** | Non-blocking chunk read/write to disk, tracking active operations. |
-| **Chunk Task Scheduler** | Priority queue with cancellation support and active task tracking. |
-| **Entity Filter** | Range-based entity queries with managed entity sets, used by the chunk engine and AI throttle. |
+---
 
-### Explosion Optimization
+## 核心模块
 
-Prevents explosions from causing frame drops and particle storms.
+### AI 优化
 
-| Feature | Description |
-|---------|-------------|
-| **Explosion Batcher** | Bounded `PriorityBlockingQueue` (capped to prevent OOM) that batches explosion processing per frame and per tick. Closer explosions are processed first. |
-| **Async Explosion Processor** | Offloads explosion computation off the main thread. |
-| **Block Impact Skip** | Skips block-impact checks for blocks beyond a configurable 3D distance threshold. |
-| **Particle Limiter** | Caps explosion particles per event at LOW (8) / MEDIUM (32) / HIGH (128) levels. |
+在不破坏原版行为的前提下降低实体 AI 运算的 CPU 开销。
 
-### Memory Management
+| 特性 | 说明 |
+|---------|------|
+| **实体 AI 节流** | 基于距离的 AI 计算桶（近/中/远/屏外）。远处的实体 AI 计算频率降低；屏外实体可完全暂停。 |
+| **路径缓存** | LRU + TTL 路径缓存，以实体类型和区块坐标作为键。容量溢出时淘汰最旧条目。 |
+| **共享路径注册表** | 允许同一区域中相同类型的实体复用共享路径，避免重复的 A* 计算。 |
+| **空间索引** | 按距离对实体分桶，实现 O(1) 节流分类，无需逐实体进行距离扫描。 |
+| **全局倍率** | 范围 `[0, 1]` 的标量，乘以 AI 计算频率 — 设置为 `0` 可暂停所有 AI。 |
 
-The most aggressive subsystem — directly tackles the high-memory-usage problem under shader workloads.
+节流器注入到 `Mob.serverAiStep()`（而非 `tick()`），因此物理、移动和插值可继续正常运行，仅节流目标/大脑/控制相关计算。
 
-| Feature | Description |
-|---------|-------------|
-| **ByteBuffer Pool** | Bucketed pool that reuses `ByteBuffer` instances by power-of-two capacity, eliminating per-allocation GC pressure. Each bucket caps at 32 buffers. Can be enabled/disabled at runtime. |
-| **Entity Data Pool** | Object pool for entity data with factory + resetter pattern; failed resets prevent recycling. Thread-safe concurrent acquire/release. |
-| **Resource Evictor** | Periodic cache eviction with a configurable interval and a dynamic texture-cache target size. |
-| **Heap Defragmenter** | Runs on a low-priority background thread to avoid main-thread pauses. |
-| **Dynamic Memory Optimizer** | Triggers cleanup on a dedicated `CoreSplit-MemoryCleaner` thread — **never** calls `System.gc()` or `Thread.sleep()` on the client tick thread. |
-| **Entity Data Unloader** | Unloads entity data for entities beyond a configurable distance. |
-| **Shader Memory Optimizer** | Activates only when Iris shaders are on: halves the texture-cache target, runs aggressive eviction every 30 s, and restores original sizes when shaders are disabled. |
+### 区块引擎
 
-### GPU Acceleration
+并行化区块生成和异步 I/O。
 
-Pluggable GPU compute backends with automatic health monitoring and CPU fallback.
+| 特性 | 说明 |
+|---------|------|
+| **并行区块生成器** | 多线程地形噪声生成，使用优先级任务调度器。 |
+| **异步区块 I/O** | 非阻塞的区块磁盘读写，跟踪正在进行的操作。 |
+| **区块任务调度器** | 支持取消和活跃任务跟踪的优先级队列。 |
+| **实体过滤器** | 基于范围的实体查询，带受管理的实体集合，供区块引擎和 AI 节流器使用。 |
 
-| Backend | Status |
+### 爆炸优化
+
+防止爆炸导致帧率骤降和粒子风暴。
+
+| 特性 | 说明 |
+|---------|------|
+| **爆炸批处理器** | 有界的 `PriorityBlockingQueue`（限制容量以防止 OOM），每帧每 Tick 批量处理爆炸。更近的爆炸优先处理。 |
+| **异步爆炸处理器** | 将爆炸计算卸载到主线程之外。 |
+| **方块影响跳过** | 跳过超出可配置 3D 距离阈值的方块冲击检测。 |
+| **粒子限制器** | 将每次爆炸的粒子数限制在 LOW（8）/ MEDIUM（32）/ HIGH（128）级别。 |
+
+### 内存管理
+
+最激进的子系统——直接解决着色器负载下的高内存使用问题。
+
+| 特性 | 说明 |
+|---------|------|
+| **ByteBuffer 池** | 按 2 的幂次容量分桶复用的 `ByteBuffer` 实例池，消除每次分配的 GC 压力。每个桶上限为 32 个缓冲区。可在运行时启用/禁用。 |
+| **实体数据池** | 实体数据对象池，采用工厂 + 重置器模式；重置失败则阻止回收。线程安全的并发 acquire/release。 |
+| **资源驱逐器** | 定期缓存驱逐，可配置间隔和动态纹理缓存目标大小。 |
+| **堆整理器** | 在低优先级后台线程上运行，避免主线程停顿。 |
+| **动态内存优化器** | 在专用 `CoreSplit-MemoryCleaner` 线程上触发清理——**绝不**在客户端 Tick 线程上调用 `System.gc()` 或 `Thread.sleep()`。 |
+| **实体数据卸载器** | 卸载超出可配置距离的实体数据。 |
+| **着色器内存优化器** | 仅在 Iris 着色器启用时生效：将纹理缓存目标减半，每 30 秒执行一次激进驱逐，禁用着色器时恢复原始配置。 |
+
+### GPU 加速
+
+可插拔的 GPU 计算后端，带自动健康监控和 CPU 回退。
+
+| 后端 | 状态 |
 |---------|--------|
-| **OpenGL** | Default, always available. |
-| **Vulkan** | Experimental, reflection-loaded. |
-| **OpenCL** | Experimental, reflection-loaded. |
-| **CUDA** | Experimental, requires NVIDIA GPU + CUDA toolkit. |
-| **CPU Fallback** | Always available; used when no GPU backend initializes or when a backend degrades. |
+| **OpenGL** | 默认，始终可用。 |
+| **Vulkan** | 实验性，反射加载。 |
+| **OpenCL** | 实验性，反射加载。 |
+| **CUDA** | 实验性，需要 NVIDIA GPU + CUDA 工具包。 |
+| **CPU 回退** | 始终可用；当没有 GPU 后端初始化或后端降级时使用。 |
 
-Backends are **mutually exclusive** — enabling one automatically disables the others. The registry monitors backend health and falls back to CPU on:
+后端**互斥**——启用一个会自动禁用其他。注册表监控后端健康，在以下情况回退到 CPU：
 
-- Sustained slow tasks (> 100 ms)
-- 3+ consecutive failures
-- Success rate below 80%
+- 持续慢任务（> 100 ms）
+- 连续 3 次以上失败
+- 成功率低于 80%
 
-### Render Limiter
+### 渲染限制器
 
-| Feature | Description |
-|---------|-------------|
-| **Entity Render Limiter** | Caps the number of rendered entities per frame, with a special tighter cap under Iris/Sodium. |
-| **Frustum Culler** | Culls item renders outside the view frustum. |
-| **Item Render Optimizer** | Tunable item-render distance and rate. |
-| **GPU Monitor** | Tracks GPU task latency and success rate for health monitoring. |
+| 特性 | 说明 |
+|---------|------|
+| **实体渲染限制器** | 限制每帧渲染的实体数量，在 Iris/Sodium 下有更严格的限制。 |
+| **视锥体裁剪器** | 剔除视锥体外的物品渲染。 |
+| **物品渲染优化器** | 可调节的物品渲染距离和频率。 |
+| **GPU 监控器** | 跟踪 GPU 任务延迟和成功率，用于健康监控。 |
 
-### Performance Governor
+### 性能调节器
 
-Dynamically adjusts render quality based on live FPS, MSPT, and CPU usage.
+根据实时 FPS、MSPT 和 CPU 使用率动态调整渲染质量。
 
-- Quality levels 0–5 with monotonic transitions.
-- Frame-time values are clamped to prevent NaN/Inf from corrupting FPS calculations.
-- Under high-FPS scenarios (> 200 fps), adjustment interval extends to 5 s and requires consecutive trend detection to avoid frequent quality flips.
-- Supports forced V-Sync and GPU-overload detection under shaders.
+- 质量等级 0–5，单调过渡。
+- 帧时间值被钳制，防止 NaN/Inf 破坏 FPS 计算。
+- 高 FPS（> 200）场景下，调整间隔延长至 5 秒，需连续趋势检测以避免频繁切换质量等级。
+- 支持强制垂直同步和着色器下的 GPU 过载检测。
 
-### Shader Compatibility
+### 着色器兼容性
 
-Deep integration with Iris and Sodium — only active when those mods are loaded.
+与 Iris 和 Sodium 深度集成——仅在这些模组加载时启用。
 
-| Feature | Description |
-|---------|-------------|
-| **Shader Performance Optimizer** | When shaders are active: clamps render distance to shadow distance + margin, forces V-Sync, reduces particle/entity render distance, and lowers the entity multiplier. All changes auto-restore when shaders are disabled. |
-| **Shader Memory Optimizer** | See [Memory Management](#memory-management). |
-| **Compat Coordinator** | Central coordinator that clamps render distance and orchestrates all shader-aware modules. |
-| **Iris / Sodium Config Schema** | Parses Iris/Sodium config files with cached remote schema fetching (dual-switch controlled, async, rate-limited). |
-| **Reflection Caching** | Sodium field reads are cached in a `ConcurrentHashMap` to avoid repeated `getDeclaredField` + `setAccessible` calls. |
-| **Conflict Manager** | Detects known mod conflicts via `FabricLoader.getInstance().isModLoaded()`. |
+| 特性 | 说明 |
+|---------|------|
+| **着色器性能优化器** | 着色器启用时：将渲染距离限制为阴影距离 + 余量，强制垂直同步，减少粒子/实体渲染距离，降低实体倍率。所有更改在着色器禁用时自动恢复。 |
+| **着色器内存优化器** | 参见[内存管理](#内存管理)。 |
+| **兼容性协调器** | 中央协调器，限制渲染距离并协调所有着色器感知模块。 |
+| **Iris / Sodium 配置 Schema** | 解析 Iris/Sodium 配置文件，带缓存的远程 Schema 获取（双开关控制，异步，限速）。 |
+| **反射缓存** | Sodium 字段读取缓存在 `ConcurrentHashMap` 中，避免重复调用 `getDeclaredField` + `setAccessible`。 |
+| **冲突管理器** | 通过 `FabricLoader.getInstance().isModLoaded()` 检测已知模组冲突。 |
 
-### Model & Texture System
+### 模型与纹理系统
 
-- **Animation Controller / State Manager / Optimizer** — manages animation variables, LOD, and interpolation.
-- **JEM File Parser** — parses OptiFine-format JEM/JPM entity models.
-- **Player Model Handler** — bone-transform management for player models.
-- **Block Entity Model Adapter** — manages block-entity render states.
-- **Texture Cache** — LRU texture cache with a configurable max size, used by the resource evictor.
-- **Emissive Renderer** — processes emissive texture data.
-- **Player Skin Enhancer** — clamped transparency handling for player skins.
-- **OptiFine Properties Parser** — parses biome/animation/skin properties.
+- **动画控制器 / 状态管理器 / 优化器** — 管理动画变量、LOD 和插值。
+- **JEM 文件解析器** — 解析 OptiFine 格式的 JEM/JPM 实体模型。
+- **玩家模型处理器** — 玩家模型的骨骼变换管理。
+- **方块实体模型适配器** — 管理方块实体渲染状态。
+- **纹理缓存** — LRU 纹理缓存，可配置最大大小，供资源驱逐器使用。
+- **自发光渲染器** — 处理自发光纹理数据。
+- **玩家皮肤增强器** — 玩家皮肤的透明度钳制处理。
+- **OptiFine 属性解析器** — 解析生物群系/动画/皮肤属性。
 
-### Entity Sound System
+### 实体音效系统
 
-- **Entity Sound System** — plays entity-aware sounds with full play → fade → stop lifecycle.
-- **Sound Variant Manager** — switches sound variants based on entity texture and probabilistic conditions.
-- **Sound-Driven Visual Manager** — applies and reverts visual changes (e.g. texture, animation) tied to sound events.
-- **Sound Animation Integrator** — fade in/out, state transitions, and `playsound` command processing.
+- **实体音效系统** — 播放实体感知音效，包含完整的播放→淡出→停止生命周期。
+- **音效变体管理器** — 根据实体纹理和概率条件切换音效变体。
+- **音效驱动视觉管理器** — 应用和还原与音效事件相关的视觉变化（如纹理、动画）。
+- **音效动画集成器** — 淡入/淡出、状态转换和 `playsound` 指令处理。
 
-### Monitoring & Diagnostics
+### 监控与诊断
 
-| Tool | Description |
-|---------|-------------|
-| **Performance Monitor** | Live FPS, MSPT, frame-time, and CPU metrics with incremental CPU-usage computation. |
-| **Bottleneck Analyzer** | Classifies the current bottleneck as `NONE`, `CPU_BOUND`, `GPU_BOUND`, `ENTITY_BOUND`, or `MEMORY_BOUND` (memory takes priority). |
-| **Device Profile** | Detects hardware tier, CPU cores, and memory; recommends a matching preset. |
-| **Client / Server Metrics Cache** | Bounded metric caches (256–1024 entries) to prevent memory leaks. |
-| **Debug Overlay** | F3 overlay with CoreSplit's own debug entries, keybinds, and a GPU bottleneck alert. |
+| 工具 | 说明 |
+|---------|------|
+| **性能监控器** | 实时 FPS、MSPT、帧时间和 CPU 指标，增量计算 CPU 使用率。 |
+| **瓶颈分析器** | 将当前瓶颈分类为 `NONE`、`CPU_BOUND`、`GPU_BOUND`、`ENTITY_BOUND` 或 `MEMORY_BOUND`（内存优先）。 |
+| **设备分析** | 检测硬件等级、CPU 核心数和内存；推荐匹配的预设方案。 |
+| **客户端/服务器指标缓存** | 有界指标缓存（256–1024 条目），防止内存泄漏。 |
+| **调试覆盖层** | F3 覆盖层，显示 CoreSplit 自身的调试条目、快捷键和 GPU 瓶颈警报。 |
 
-### Scheduler
+### 调度器
 
-| Component | Description |
-|---------|-------------|
-| **Task Scheduler** | Configurable thread pool (cores × multiplier, clamped to 1–4× core count) with graceful shutdown. |
-| **Prioritized Task Scheduler** | Bounded queue + `CallerRunsPolicy` for saturation handling, with completed-task counting in a `finally` block. |
-| **Profile Manager** | Save / load / activate named optimization profiles; sanitizes profile names and prevents duplicates. |
-| **Resource Monitor** | Tracks system resource usage for the scheduler. |
-
----
-
-## Configuration
-
-CoreSplit ships with a unified config UI powered by YACL, accessible via ModMenu. The config file is stored as `coresplit_client.toml`.
-
-Configuration sections:
-
-- **Engine** — core optimization toggles and mode.
-- **Overlay** — debug HUD and keybinds.
-- **Performance** — governor, FPS targets, and quality levels.
-- **Compatibility** — Iris / Sodium deep-compat switches and remote schema fetch.
-- **Scheduler** — thread pool sizing.
-- **Render** — entity render limits, frustum culling, item render.
-- **GPU** — backend selection, CUDA toggle, health-monitor thresholds.
-- **Shader Optimization** — shader-aware performance tuning (10 options):
-  - Master switch, force V-Sync, reduce particles, reduce entities, limit render distance, aggressive memory release, shadow distance margin, max render distance cap, particle render distance, entity multiplier.
-- **Memory Management** — memory strategy (6 options):
-  - Master switch, ByteBuffer pool toggle, texture cache limit, entity data pool size, cache eviction interval, aggressive eviction threshold.
-
-All setters perform three actions: update the field value, call the corresponding functional class to apply the setting at runtime, and call `save()` to persist to disk. Range validation is enforced on every numeric input.
+| 组件 | 说明 |
+|---------|------|
+| **任务调度器** | 可配置线程池（核心数 × 倍率，限制在 1–4× 核心数），带优雅关闭。 |
+| **优先级任务调度器** | 有界队列 + `CallerRunsPolicy` 处理饱和，在 `finally` 块中计数已完成任务。 |
+| **配置文件管理器** | 保存/加载/激活命名的优化配置；清理配置文件名并防止重复。 |
+| **资源监控器** | 跟踪系统资源使用情况，供调度器使用。 |
 
 ---
 
-## Compatibility
+## 配置
 
-**Required dependencies:**
+CoreSplit 配备由 YACL 驱动的统一配置 UI，可通过 ModMenu 访问。配置文件存储为 `coresplit_client.toml`。
+
+配置部分：
+
+- **引擎** — 核心优化开关和模式。
+- **覆盖层** — 调试 HUD 和快捷键。
+- **性能** — 调节器、FPS 目标和质量等级。
+- **兼容性** — Iris/Sodium 深度兼容开关和远程 Schema 获取。
+- **调度器** — 线程池大小。
+- **渲染** — 实体渲染限制、视锥体裁剪、物品渲染。
+- **GPU** — 后端选择、CUDA 开关、健康监控阈值。
+- **着色器优化** — 着色器感知性能调节（10 项）：
+  - 主开关、强制垂直同步、减少粒子、减少实体、限制渲染距离、激进内存释放、阴影距离余量、最大渲染距离上限、粒子渲染距离、实体倍率。
+- **内存管理** — 内存策略（6 项）：
+  - 主开关、ByteBuffer 池开关、纹理缓存限制、实体数据池大小、缓存驱逐间隔、激进驱逐阈值。
+
+所有 setter 执行三个操作：更新字段值、调用对应的功能类在运行时应用设置、调用 `save()` 持久化到磁盘。每个数值输入都强制执行范围验证。
+
+---
+
+## 兼容性
+
+**必需依赖：**
 - Fabric Loader >= 0.16.0
 - Fabric API
 - Minecraft >= 26.2
 - Java >= 25
 
-**Suggested (optional but recommended):**
-- ModMenu — for the in-game config screen.
-- Iris — triggers shader-aware optimizations.
-- Sodium — triggers field-reflection optimizations.
+**建议（可选但推荐）：**
+- ModMenu — 用于游戏内配置界面。
+- Iris — 触发着色器感知优化。
+- Sodium — 触发字段反射优化。
 
-CoreSplit detects loaded mods at startup and gracefully no-ops features whose target mod is absent. All client-side classes are accessed with runtime null checks and exception handling to prevent server-side crashes.
-
----
-
-## Installation
-
-1. Install **Fabric Loader** 0.16.0 or newer.
-2. Install **Fabric API**.
-3. Drop `coresplit-2.5.0.jar` into your `mods/` folder.
-4. (Recommended) Install **ModMenu** to access the config screen.
-5. (Optional) Install **Iris** and **Sodium** for shader-aware optimizations.
-6. Launch the game. CoreSplit auto-profiles your hardware and applies a recommended preset.
-
+CoreSplit 在启动时检测已加载的模组，并优雅地跳过目标模组不存在的功能。所有客户端类都通过运行时空检查和异常处理来防止服务端崩溃。
 
 ---
 
-## Links
+## 安装
 
-- **Homepage:** https://github.com/DrKyusu/CoreSplit
-- **Issues:** https://github.com/DrKyusu/CoreSplit/issues
-- **Sources:** https://github.com/DrKyusu/CoreSplit
+1. 安装 **Fabric Loader** 0.16.0 或更新版本。
+2. 安装 **Fabric API**。
+3. 将 `coresplit-2.5.0.jar` 放入 `mods/` 文件夹。
+4. （推荐）安装 **ModMenu** 以访问配置界面。
+5. （可选）安装 **Iris** 和 **Sodium** 以启用着色器感知优化。
+6. 启动游戏。CoreSplit 会自动分析你的硬件并应用推荐的预设方案。
 
 ---
 
-*CoreSplit is licensed under AGPL-3.0.*
+## 链接
+
+- **首页：** https://github.com/DrKyusu/CoreSplit
+- **问题反馈：** https://github.com/DrKyusu/CoreSplit/issues
+- **源代码：** https://github.com/DrKyusu/CoreSplit
+
+---
+
+*CoreSplit 基于 AGPL-3.0 许可证发布。*
