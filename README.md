@@ -6,31 +6,26 @@
   <img src="https://img.shields.io/badge/许可证-AGPL--3.0-blue" alt="License">
 </p>
 
-<h1 align="center">✦ CoreSplit ✦</h1>
-<h3 align="center"><i>～ 让世界流畅起来的魔法少女 ～</i></h3>
+# ✦ CoreSplit ✦
+
+> ～ 让世界流畅起来的魔法少女 ～
 
 <p align="center">
-  <img src="https://img.shields.io/badge/✨%20FPS%20Boost-超频加速-FFD700" alt="FPS Boost">
-  <img src="https://img.shields.io/badge/🎀%20Kawaii-Max%20Moe-FF69B4" alt="Kawaii">
-  <img src="https://img.shields.io/badge/💜%20Moe%20Optimizer-Power%20Up%20%21-8A2BE2" alt="Moe Optimizer">
+  <img src="https://img.shields.io/badge/Sparkle-FPS_Boost-FFD700" alt="FPS Boost">
+  <img src="https://img.shields.io/badge/Ribbon-Kawaii_Max-FF69B4" alt="Kawaii">
+  <img src="https://img.shields.io/badge/Heart-Moe_Optimizer-8A2BE2" alt="Moe Optimizer">
 </p>
 
-<p align="center">
-  作者：DR.Kyusu &nbsp;|&nbsp;
-  <a href="README_EN.md">English</a> &nbsp;|&nbsp; <b>中文</b>
-</p>
+作者：DR.Kyusu &nbsp;|&nbsp; <a href="README_EN.md">English</a> &nbsp;|&nbsp; **中文**
 
-<div align="center">
+> ```
+> 　∧ ∧
+>  (´･ω･)  ── 我是 CoreSplit，参上！♪
+>  /⌒　⌒ヽ  ⚡ 卡顿退散・帧率全开 ⚡
+> ```
 
-```
-　∧ ∧
- (´･ω･)  ── 我是 CoreSplit，参上！♪
- /⌒　⌒ヽ  ⚡ 卡顿退散・帧率全开 ⚡
-```
-
-</div>
-
-> <sub>（o´▽`o）ノ 大家好呀～我是 CoreSplit，一位悄悄住在方块世界里、帮你把卡顿统统赶跑的小女仆♪<br>只要我在场，高帧率与低延迟的魔法就会一直守护着你哦！</sub>
+> （o´▽`o）ノ 大家好呀～我是 CoreSplit，一位悄悄住在方块世界里、帮你把卡顿统统赶跑的小女仆♪
+> 只要我在场，高帧率与低延迟的魔法就会一直守护着你哦！
 
 ---
 
@@ -270,18 +265,14 @@ CoreSplit 配备由 **YACL** 驱动的统一配置 UI，可通过 **ModMenu** �
 
 ---
 
-<div align="center">
-
-```
-　 ／￣￣￣＼
- ／　(´・ω・)　＼  今天的优化也完成啦～
-￣￣￣￣￣￣￣￣￣￣
-　　 ｜　　｜
-```
-
-**~ 愿你与流畅的帧率，共度每一段旅程 ~**
-
-</div>
+> ```
+> 　 ／￣￣￣＼
+>  ／　(´・ω・)　＼  今天的优化也完成啦～
+> ￣￣￣￣￣￣￣￣￣￣
+> 　　 ｜　　｜
+> ```
+>
+> **~ 愿你与流畅的帧率，共度每一段旅程 ~**
 
 <p align="center">
   <i>CoreSplit 基于 AGPL-3.0 许可证发布</i><br>
