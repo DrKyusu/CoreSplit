@@ -6,6 +6,10 @@
   <img src="https://img.shields.io/badge/License-AGPL--3.0-blue" alt="License">
 </p>
 
+<p align="center">
+  <img src="src/main/resources/assets/coresplit/icon.png" width="128" height="128" alt="CoreSplit Icon">
+</p>
+
 <h1 align="center">✦ CoreSplit ✦</h1>
 <h3 align="center"><i>～ The magical girl who makes the world run smoothly ～</i></h3>
 

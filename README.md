@@ -6,6 +6,10 @@
   <img src="https://img.shields.io/badge/许可证-AGPL--3.0-blue" alt="License">
 </p>
 
+<p align="center">
+  <img src="src/main/resources/assets/coresplit/icon.png" width="128" height="128" alt="CoreSplit Icon">
+</p>
+
 # ✦ CoreSplit ✦
 
 > ～ 让世界流畅起来的魔法少女 ～
