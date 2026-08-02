@@ -10,7 +10,7 @@
   <img src="icon.png" width="128" height="128" alt="CoreSplit Icon">
 </p>
 
-# ✦ CoreSplit ✦
+<h1 align="center">✦ CoreSplit ✦</h1>
 
 > ～ 让世界流畅起来的魔法少女 ～
 
