@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="src/main/resources/assets/coresplit/icon.png" width="128" height="128" alt="CoreSplit Icon">
+  <img src="icon.png" width="128" height="128" alt="CoreSplit Icon">
 </p>
 
 # ✦ CoreSplit ✦
