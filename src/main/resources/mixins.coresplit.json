@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "package": "com.coresplit.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ai.MobMixin",
+    "ai.GoalSelectorMixin",
+    "ai.PathNavigationMixin",
+    "ai.BrainMixin",
+    "explosion.ServerExplosionMixin",
+    "memory.EntityMixin",
+    "memory.ChunkSerializerMixin"
+  ],
+  "client": [
+    "HudMixin",
+    "DebugScreenEntriesMixin",
+    "KeyboardHandlerMixin",
+    "explosion.ParticleEngineMixin",
+    "render.ItemEntityRendererMixin",
+    "render.LivingEntityRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
