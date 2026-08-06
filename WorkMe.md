@@ -2,10 +2,10 @@
 
 > **文档用途**：本文件是 CoreSplit 项目的维护手册与记忆备份，供后续开发者（含 AI 助手）快速理解项目全貌、各文件职责、架构决策与待办事项。
 >
-> **最后更新**：2026-08-06  
-> **项目版本**：2.5.0  
-> **目标 MC 版本**：26.2  
-> **作者**：DR.Kyusu  
+> **最后更新**：2026-08-06（爆炸合并指标可视化 + HUD 可展示项自由配置）
+> **项目版本**：2.5.1
+> **目标 MC 版本**：26.2
+> **作者**：DR.Kyusu
 
 ---
 
@@ -155,7 +155,7 @@ d:\CoreSplit\
 │   │               ├── en_us.json          # 英文语言文件
 │   │               └── zh_cn.json          # 中文语言文件
 │   └── test/
-│       └── java/com/coresplit/             # 测试代码（32 个文件）
+│       └── java/com/coresplit/             # 测试代码（33 个文件）
 └── build/                                  # 构建输出（自动生成）
 ```
 
@@ -314,6 +314,8 @@ AI 优化模块通过距离分桶节流、路径缓存、路径共享三种策�
 
 - 爆炸队列使用 `PriorityBlockingQueue` + 容量上限 + 溢出拒绝策略，防止无界队列 OOM
 - 粒子级别可配置：LOW / MEDIUM / HIGH / UNLIMITED
+- **v2.5.0 双层合并降级**：入队时自动合并（队列 ≥80% 且 ≥1000 任务）+ 调度器 `MergeThenDropPolicy`（满队列先合并再丢弃）
+- **v2.5.1 指标可视化**：`totalMerged` / `totalMergeCycles` / `droppedCount` / `mergeRecoveredCount` 等计数器已通过 `ExplosionStatsProvider`（HUD）和 `/csstats` 命令暴露给用户，详见 [第 18 节](#18-hud-与叠加层-hud-overlay) 与 [第 17 节](#17-命令系统-command)
 
 ---
 
@@ -531,9 +533,26 @@ YACL 配置界面包含以下类别（Category）：
 6. **Memory** — 纹理缓存、对象池、驱逐策略
 7. **Logging** — CSLogger 开关、日志级别
 8. **Overlay** — F6 叠加层开关、字体缩放
-9. **CS HUD** — HUD 位置、透明度、背景
+9. **CS HUD** — HUD 位置、透明度、背景 + **可展示项分组**（v2.5.1）：8 个独立开关分别控制 performance / player_info / world_info / module_status / explosion_stats / chunk_info / system_info / third_party 区块的显示
 10. **Compatibility** — Iris/Sodium 深度兼容
 11. **GPU Acceleration** — CUDA/OpenCL/Vulkan/OpenGL
+
+### CS HUD 可展示项开关（v2.5.1 新增）
+
+用户可在 YACL 的「CS HUD」类别下的「可展示项」分组中独立勾选每个 HUD 区块：
+
+| 配置键 | 默认 | 控制的 Provider | 说明 |
+|---|---|---|---|
+| `hud.show_performance` | true | `coresplit:performance` | FPS / 帧时间 / 内存 |
+| `hud.show_player_info` | true | `coresplit:player` | 坐标 / 维度 / 朝向 |
+| `hud.show_world_info` | true | `coresplit:world` | 时间 / 天气 |
+| `hud.show_module_status` | true | `coresplit:modules` | governor / scheduler / 目标 FPS |
+| `hud.show_explosion_stats` | true | `coresplit:explosion_stats` | 爆炸合并 / 丢弃 / 恢复指标 |
+| `hud.show_chunk_info` | true | `coresplit:chunk` | 渲染距离 / 模拟距离 / 区块坐标 |
+| `hud.show_system_info` | false | `coresplit:system` | Java 版本 / CPU / JVM 运行时长 / 线程数（偏极客，默认关）|
+| `hud.show_third_party` | true | 非 `coresplit:*` 前缀的全部提供者 | 第三方模组 HUD 总开关，关闭后一次性屏蔽所有外部提供者 |
+
+**前缀区分机制**：`CSHudRenderer.collectLines()` 通过 `getProviderId()` 是否以 `coresplit:` 开头来区分内置提供者与第三方提供者。内置提供者各自受对应的 `hudShowXxx` 开关控制；第三方提供者统一受 `hudShowThirdParty` 控制。
 
 ### 关键设计
 
@@ -560,7 +579,7 @@ YACL 配置界面包含以下类别（Category）：
 | `/cshelp` | 列出所有命令及用法 |
 | `/csset` (`/csSet`) | 打开 YACL 设置界面 |
 | `/csfps` | 显示当前/平均/最低/最高 FPS |
-| `/csstats` | 综合性能统计 |
+| `/csstats` | 综合性能统计（含 v2.5.1 爆炸合并 section：merged / cycles / submitted / processed / rejected / pending / dropped / recovered）|
 | `/csreload` | 从磁盘重新加载配置并应用 |
 | `/cstoggle <module>` | 切换模块开关（governor/scheduler/ai） |
 | `/csinfo` | 模组版本、硬件信息、模块状态 |
@@ -593,8 +612,8 @@ YACL 配置界面包含以下类别（Category）：
 | 文件 | 职责 |
 |---|---|
 | `CSHudApi.java` | HUD API 单例。外部模组通过 `CSHudApi.getInstance().register(...)` 注册自定义 HUD 行提供者。 |
-| `CSHudRenderer.java` | HUD 渲染器。收集所有注册的 `HudLineProvider` 提供的文本行，按优先级排序后渲染。支持背景、阴影、字体缩放、位置（四角）。检测 MiniHUD 存在时自动禁用。 |
-| `DefaultHudProviders.java` | 内置 HUD 提供者注册。FPS、玩家信息、世界信息、模块状态等默认行。 |
+| `CSHudRenderer.java` | HUD 渲染器。收集所有注册的 `HudLineProvider` 提供的文本行，按优先级排序后渲染。支持背景、阴影、字体缩放、位置（四角）。检测 MiniHUD 存在时自动禁用。**v2.5.1**：`collectLines()` 新增第三方提供者前缀过滤（`coresplit:*` 前缀为内置，其余受 `hudShowThirdParty` 总开关控制）。 |
+| `DefaultHudProviders.java` | 内置 HUD 提供者注册。**v2.5.1** 共 7 个 provider：performance / player / world / modules / explosion_stats / chunk / system。每个 provider 的 `isVisible()` 读取对应的 `hudShowXxx` 配置开关，用户可在 YACL 中独立勾选。 |
 | `HudLine.java` | HUD 文本行数据类。包含文本内容和颜色。 |
 | `HudLineProvider.java` | HUD 行提供者接口。`getLines()` 返回行列表，`isVisible()` 控制可见性，`getProviderId()` 返回唯一标识。 |
 
@@ -614,6 +633,35 @@ YACL 配置界面包含以下类别（Category）：
 - F6 叠加层有 1 秒缓存 TTL，避免每帧调用 `buildSummary()`
 - 矩阵缩放使用 `pushMatrix()` / `popMatrix()` 避免浮点精度漂移
 - MiniHUD 存在检测：`FabricLoader.getInstance().isModLoaded("minihud")`
+
+### 内置 HUD 提供者清单（v2.5.1）
+
+`DefaultHudProviders.registerAll()` 注册 7 个内置 provider，按优先级升序排列（数字越小越靠上）：
+
+| 优先级 | Provider ID | 类 | 显示内容 | TTL | 配置开关 |
+|---|---|---|---|---|---|
+| 0 | `coresplit:performance` | `PerformanceProvider` | FPS（颜色分级）/ 帧时间 / 堆内存 | 100ms | `hud.show_performance` |
+| 10 | `coresplit:player` | `PlayerInfoProvider` | XYZ / 方块坐标 / 维度 / 朝向 | 100ms | `hud.show_player_info` |
+| 20 | `coresplit:world` | `WorldInfoProvider` | 时间 / 天气（晴/雨/雷）| 500ms | `hud.show_world_info` |
+| 30 | `coresplit:modules` | `ModuleStatusProvider` | governor 状态+质量等级 / scheduler 线程数 / 目标 FPS | 500ms | `hud.show_module_status` |
+| 40 | `coresplit:explosion_stats` | `ExplosionStatsProvider` | 合并任务数+周期 / 队列使用率 / 调度器丢弃+恢复 | 500ms | `hud.show_explosion_stats` |
+| 50 | `coresplit:chunk` | `ChunkInfoProvider` | 渲染距离 / 模拟距离 / 当前区块坐标 | 500ms | `hud.show_chunk_info` |
+| 60 | `coresplit:system` | `SystemInfoProvider` | Java 版本 / CPU 核心 / JVM 运行时长 / 线程数 | 1000ms | `hud.show_system_info`（默认关）|
+
+**ExplosionStatsProvider 详细字段**（v2.5.1 核心）：
+
+| HUD 行 | 颜色 | 含义 |
+|---|---|---|
+| `ExplMerge: N (M cycles)` | 绿（0x55FF55）| 累计合并任务数 + 合并周期数；为 0 时显示静态标签 |
+| `ExplQueue: pending/cap (xx%)` | 橙（≥80%）/ 蓝（<80%）| 当前待处理队列 + 容量 + 使用率 |
+| `SchedDrop: N` | 红（0xFF5555）| 调度器丢弃的任务数，仅 >0 时显示 |
+| `SchedRecover: N` | 青（0x55FFFF）| 调度器通过合并恢复的任务数，仅 >0 时显示 |
+
+**第三方提供者过滤**：`CSHudRenderer.collectLines()` 遍历注册表时，对每个 provider 检查 `getProviderId()`：
+- 以 `coresplit:` 开头 → 内置提供者，已由各自 `isVisible()` 中的 `hudShowXxx` 开关控制
+- 不以 `coresplit:` 开头 → 第三方提供者，受 `hudShowThirdParty` 总开关控制；关闭时跳过
+
+**缓存策略**：每个 provider 用 `volatile List<HudLine> cache` + `volatile long lastUpdate` + TTL 实现单元素快照缓存。render 线程单线程访问，volatile 保证内存可见性。TTL 范围 100ms（FPS 等高频变化）~ 1000ms（系统信息等低频变化）。
 
 ---
 
@@ -814,7 +862,7 @@ Mod 图标。
 
 ## 24. 测试体系
 
-### 测试文件列表（32 个）
+### 测试文件列表（33 个）
 
 | 目录 | 测试文件 | 测试内容 |
 |---|---|---|
@@ -823,6 +871,7 @@ Mod 图标。
 | `compat/` | IrisConfigSchemaTest, RateLimiterTest, RemoteSchemaFetcherTest, SchemaCacheTest | Iris schema、速率限制、远程拉取、schema 缓存 |
 | `explosion/` | ExplosionBatcherTest, ExplosionBlockImpactTest, ExplosionParticleLimiterTest | 爆炸批处理、方块影响、粒子限制 |
 | `governor/` | PerformanceGovernorTest | 性能管理器 |
+| `hud/` | HudConfigAndProvidersTest | **v2.5.1** HUD 配置开关默认值、7 个内置 provider 注册与前缀校验、优先级排序、第三方注册/去重/注销、前缀过滤逻辑、HudLine 值对象（10 个测试）|
 | `logging/` | CSLoggerTest | 日志系统 |
 | `memory/` | ByteBufferPoolTest, EntityDataPoolTest | 缓冲池、实体数据池 |
 | `model/` | ModelSystemTest | 模型系统 |
@@ -890,6 +939,72 @@ Mod 图标。
 
 ## 26. 后续开发计划
 
+### 近期已完成（2026-08-06）
+
+#### 爆炸队列系统高并发合并降级优化
+
+**背景问题**：原 `PrioritizedTaskScheduler` 使用 `CallerRunsPolicy` 拒绝策略 + 50000 队列容量。在瞬间数千个 TNT 爆炸事件的高并发场景下，队列满时主线程会被迫同步执行爆炸物理计算，违背"分帧处理保障流畅"的设计初衷，导致明显卡顿。
+
+**实现方案**（双层防御）：
+
+| 层级 | 触发条件 | 处理机制 | 涉及文件 |
+|---|---|---|---|
+| ① 入队时自动合并 | 队列使用率 ≥ 80% 且绝对数量 ≥ 1000 | `ExplosionBatcher.offer()` 先尝试将新任务与同空间桶+重叠爆炸合并再入队 | `ExplosionBatcher.java` |
+| ② 调度器拒绝策略 MergeThenDrop | 调度器队列 50000 满 + worker 全阻塞 | 优先 `tryMergeRejected()` 合并回 Batcher；Batcher >95% 时再 `forceMergeAll()` 全量压缩；仍失败则 drop 并计数 | `PrioritizedTaskScheduler.java` |
+
+**关键算法**：
+- 空间分桶：`bucketKey(x,y,z)` 使用 8×8×8 栅格 pack 到 long（22 位/轴 + 偏置），保证同桶任务在可合并范围内
+- 加权合并：位置按 `1/(distanceToNearestPlayer+1)` 加权平均（避免远处爆炸拉偏中心）；半径取 `max × 1.15` 放大补偿；玩家距离取 min 保证优先级不退化
+- 限流告警日志：令牌桶（10 个 / 10 秒）防止合并事件风暴刷屏
+
+**新增统计计数器**：
+- `ExplosionBatcher.getTotalMerged()` — 累计减少的任务数
+- `ExplosionBatcher.getTotalMergeCycles()` — 合并周期数
+- `PrioritizedTaskScheduler.getDroppedCount()` — 被丢弃的任务数（饱和降级监控）
+- `PrioritizedTaskScheduler.getMergeRecoveredCount()` — 通过合并恢复的任务数
+
+**新增测试**：
+- `ExplosionBatcherTest` 新增 6 个合并机制单测（阈值、自动合并、合并语义、密集簇压缩、孤立任务保护、满队列合并降级）
+- `SchedulerStressTest.prioritizedSchedulerShouldProvideBackPressure` 不变量改为：禁止在调用者线程执行（`ranOnCaller == 0`）+ drop 计数递增
+
+**验证结果**：279 个测试全部通过，编译成功。
+
+#### 爆炸合并指标可视化 + HUD 可展示项自由配置
+
+**背景**：v2.5.0 引入的双层合并降级（入队自动合并 + 调度器 MergeThenDrop）产生了 `totalMerged` / `droppedCount` / `mergeRecoveredCount` 等关键指标，但此前仅在代码层面存在，用户无法观察合并降级效果。同时 HUD 的可展示项此前为"全有或全无"，用户无法按需关闭某个区块，也无法统一控制第三方模组接入的 HUD 行。
+
+**实现方案**：
+
+| 改动 | 涉及文件 | 说明 |
+|---|---|---|
+| ① 新增 `ExplosionStatsProvider` | `DefaultHudProviders.java` | HUD 实时展示合并任务数+周期、队列使用率（≥80% 转橙色警告）、调度器丢弃+恢复计数（仅 >0 时显示）|
+| ② `/csstats` 新增爆炸合并 section | `CSCommands.java` | 输出 enabled / merged / cycles / submitted / processed / rejected / pending / merge_threshold / dropped / recovered / queue_size 共 11 项指标 |
+| ③ 新增 `ChunkInfoProvider` | `DefaultHudProviders.java` | HUD 展示渲染距离 / 模拟距离 / 当前区块坐标 |
+| ④ 新增 `SystemInfoProvider` | `DefaultHudProviders.java` | HUD 展示 Java 版本 / CPU 核心 / JVM 运行时长 / 活动线程数（偏极客，默认关）|
+| ⑤ 8 个 HUD 可展示项配置开关 | `CoreSplitYaclConfig.java` | YACL「CS HUD」类别下新增「可展示项」分组，8 个独立勾选框控制每个区块 |
+| ⑥ 第三方提供者前缀过滤 | `CSHudRenderer.java` | `collectLines()` 按 `coresplit:` 前缀区分内置/第三方；`hudShowThirdParty` 总开关控制第三方 |
+| ⑦ 语言文件同步 | `en_us.json`, `zh_cn.json` | 新增 16 个 csstats 爆炸指标键 + 16 个 cshud 可展示项键（中英双语）|
+
+**关键设计决策**：
+
+- **前缀区分机制**：内置 provider ID 统一使用 `coresplit:` 前缀（如 `coresplit:explosion_stats`），第三方提供者使用自己的命名空间（如 `mymod:potions`）。`CSHudRenderer.collectLines()` 通过 `id.startsWith("coresplit:")` 判定，无需维护白名单。
+- **ExplosionOptimizer 访问方式**：HUD provider 使用 `CoreSplitMod.getExplosionOptimizer()`（返回服务端初始化的实例或 null），**而非** `ExplosionOptimizer.getInstance()`（会懒创建一个客户端无用的单例）。`isVisible()` 在优化器为 null 时返回 false，避免单机无爆炸场景出现空行。
+- **缓存 TTL 分级**：FPS 等高频数据 100ms，爆炸指标/区块信息 500ms，系统信息 1000ms。render 线程单线程访问 + volatile 字段保证可见性。
+- **颜色分级**：合并成功=绿、丢弃=红、恢复=青、队列积压 ≥80%=橙（警告）、<80%=蓝（正常）。
+
+**新增测试**（`HudConfigAndProvidersTest`，10 个）：
+- 配置开关默认值校验（system_info 默认 false，其余默认 true）
+- 7 个内置 provider 全部注册 + `coresplit:` 前缀校验
+- provider 优先级升序排序校验
+- 第三方 provider 注册（默认优先级 100）/ 去重拒绝 / 注销 / null-empty id 拒绝
+- 内置 provider 出现在第三方之前的排序校验
+- 前缀过滤逻辑直接验证（复刻 `collectLines()` 的过滤条件）
+- HudLine builder 值对象校验
+
+**验证结果**：289 个测试全部通过（原 279 + 新增 10），编译成功。
+
+> ⚠️ **运行时验证提醒**：YACL 配置界面与 HUD 渲染不被单元测试覆盖，需通过 `gradle runClient` 实际启动游戏确认：① HUD 新区块正常显示；② `/csset` 中「可展示项」分组可勾选且实时生效；③ `/csstats` 爆炸合并 section 正常输出。
+
 ### 已知待改进项
 
 1. **GPU 加速后端完善**：CUDA/OpenCL/Vulkan 后端目前为实验性，需要更多真实场景测试和性能基准
@@ -897,6 +1012,10 @@ Mod 图标。
 3. **声音系统**：声音变体和动画集成需要更多实体类型支持
 4. **网络协议**：NetworkHandler 目前只传输 TPS/MSPT 快照，可扩展为双向配置同步
 5. **远程 Schema**：可扩展支持更多模组的配置 schema 拉取
+6. **爆炸合并参数可配置化**：当前 `MERGE_THRESHOLD_RATIO`(0.8)、`BUCKET_GRID`(8)、`MERGED_RADIUS_SCALE`(1.15) 为硬编码常量，应接入 YACL 配置界面供高级用户调整，并增加范围校验（参见项目约定：所有配置值必须包含范围验证）
+7. **`forceMergeAll` 异步化**：当前 `forceMergeAll()` 在拒绝策略中被同步调用，扫描整个队列（O(n)）。极端情况下（队列 50000 满 + 拒绝风暴）可能加重延迟。应考虑迁移到独立低优先级后台线程，拒绝策略只做标志位触发
+8. **`EXPLOSION_BATCH_TL` API 重构**：当前通过 public static ThreadLocal 传递爆炸批次给拒绝策略，虽然可用但不够优雅。可重构为 `submitExplosionBatch(List<ExplosionTask>, Runnable)` 专用 API，降低跨模块耦合
+9. **真实 TNT 连锁爆炸压测**：单元测试只验证合并算法逻辑，未覆盖 Mixin + 真实爆炸物理的端到端路径。需通过 `gradle runServer` + 命令方块触发 5000+ TNT 连锁爆炸，用 `/csstats` 观察合并降级指标和帧时间稳定性（v2.5.1 已可通过 `/csstats` 爆炸合并 section 和 HUD `ExplosionStatsProvider` 观察指标，但仍需真实压测验证）
 
 ### 功能扩展方向
 
@@ -905,6 +1024,8 @@ Mod 图标。
 3. **历史数据图表**：在配置界面展示 FPS/TPS 历史图表
 4. **自动诊断**：BottleneckAnalyzer 检测到瓶颈时自动建议配置调整
 5. **服务端多世界优化**：为多世界服务器提供按世界独立的优化策略
+6. **爆炸合并策略扩展**：当前仅按空间邻近合并，可扩展为按"爆炸源实体类型"（如苦力怕/TNT/末影水晶）分类合并，或按"爆炸链因果关系"（连锁反应）智能合并
+7. **drop 率自适应反馈**：当 `droppedCount` 增长速率超过阈值时，自动降低 `maxPerTick` 或提升合并激进度，形成闭环反馈控制
 
 ### 技术债务
 
@@ -913,6 +1034,8 @@ Mod 图标。
 3. **ModelDebugger**：开发调试工具，发布版应考虑移除或隐藏
 4. **部分模块缺少单元测试**：sound、texture、model、itemrender、particle、network 模块测试覆盖不足
 5. **配置冗余**：CoreSplitConfig（服务端 TOML）和 CoreSplitYaclConfig（客户端 YACL）部分配置项重叠，可统一
+6. **爆炸合并魔法数字**：`ExplosionBatcher` 中的 `MERGE_THRESHOLD_ABSOLUTE=1000`、`LOG_BUCKET_CAPACITY=10`、`FORCE_MERGE_LOAD_FACTOR=0.95` 等常量散落在类中，应集中到常量类或配置对象（参见项目约定：常量必须集中定义而非散落为魔法数字）
+7. **ExplosionTask.globalSeq 同步锁**：`nextSeq()` 使用 `synchronized` 方法生成序列号，在高并发提交时可能成为瓶颈，可改为 `AtomicLong.getAndIncrement()`
 
 ### 版本升级注意事项
 
@@ -923,6 +1046,7 @@ Mod 图标。
 3. **YACL API 变更**：检查 `YetAnotherConfigLib` 的 API 是否变化
 4. **渲染管线变更**：MC 26.2 的 `RenderState` 提取模型可能导致渲染相关代码需要适配
 5. **命令 API 变更**：检查 `ClientCommands` / `Commands` 的方法签名
+6. **PriorityBlockingQueue.drainTo 行为**：`ExplosionBatcher.forceMergeAll()` 依赖 `drainTo()` 快照整个队列，JDK 升级时需验证该方法在并发消费下的语义未变（当前实现允许部分任务在 drainTo 期间被消费，合并结果仍正确）
 
 ---
 
